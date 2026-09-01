@@ -226,6 +226,19 @@ class TestPipelineIntegration(unittest.TestCase):
         self.assertFalse(result["safety_concern"])
         self.assertEqual(result["ui_data"]["plan"]["action_plan"], [])
 
+    def test_works_on_completely_fresh_environment_no_db_file(self):
+        # Regression test: on a brand-new clone / CI run, student_support.db
+        # doesn't exist yet and has no tables. run_pipeline must not depend
+        # on persist=True having already created the schema.
+        if os.path.exists(DB_NAME):
+            os.remove(DB_NAME)
+        self.assertFalse(os.path.exists(DB_NAME))
+        result = run_pipeline("fresh_env_student", GOOD_CHECK_IN, GOOD_TASKS, available_hours=4, persist=False)
+        self.assertFalse(result["safety_concern"])
+        self.assertIsNotNone(result["ui_data"])
+        self.assertNotIn("error", result)
+        self.assertEqual(result["ui_data"]["score"]["support_level"], "High")
+
     def test_new_student_insufficient_history_does_not_crash(self):
         # A student with zero prior DB rows should degrade gracefully
         # (analytics.py returns status='insufficient_data') rather than error.

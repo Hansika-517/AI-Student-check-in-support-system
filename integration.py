@@ -216,6 +216,15 @@ def run_pipeline(
     validate_tasks(tasks)
     validate_available_hours(available_hours)
 
+    # Guarantee the DB schema exists before ANY query touches it — this is
+    # unconditional (independent of `persist`) because analytics.py's
+    # get_student_trends() assumes the `check_ins` table already exists and
+    # will raise "no such table" on a completely fresh environment
+    # (new clone, CI run, or a persist=False dry-run) otherwise.
+    # init_db() is idempotent (CREATE TABLE IF NOT EXISTS), so this is safe
+    # to call on every request.
+    _ensure_db_ready()
+
     # --- Safety gate runs before anything else, on every check-in. ---
     safety_result = check_safety(check_in_data)
     if safety_result["safety_concern"]:
@@ -273,10 +282,17 @@ def run_pipeline(
     }
 
 
+def _ensure_db_ready() -> None:
+    """Idempotently ensure the database file and schema exist."""
+    try:
+        init_db()
+    except Exception as exc:
+        print(f"[integration] WARNING: failed to initialize database: {exc}")
+
+
 def _safe_persist(student_id: str, check_in_data: dict) -> None:
     """Persist check-in without letting a DB error break the pipeline."""
     try:
-        init_db()
         save_check_in(student_id, check_in_data)
     except Exception as exc:
         # In a hackathon prototype, losing a DB write shouldn't block the
