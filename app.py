@@ -1219,11 +1219,50 @@ def get_mock_resources():
 
 
 def get_mock_logbook():
-    """Return mock check-in history."""
-    # ============================
-    # BACKEND INTEGRATION POINT
-    # Replace with: database queries for check_ins table
-    # ============================
+    """Return check-in history queried dynamically from SQLite database (check_ins table)."""
+    try:
+        conn = sqlite3.connect("student_support.db")
+        df = pd.read_sql_query('''
+            SELECT timestamp, sleep_hours, academic_pressure, energy_level, mood_score, workload_level, deadlines_count, optional_message 
+            FROM check_ins 
+            ORDER BY timestamp DESC
+            LIMIT 10
+        ''', conn)
+        conn.close()
+
+        if not df.empty:
+            mood_map = {1: "Low", 2: "Okay", 3: "Good", 4: "Great", 5: "Okay", 6: "Okay", 7: "Good", 8: "Good", 9: "Great"}
+            logbook_entries = []
+            for _, row in df.iterrows():
+                try:
+                    dt = datetime.strptime(str(row['timestamp'])[:10], "%Y-%m-%d")
+                    day_label = dt.strftime("%A").upper()
+                    full_date = dt.strftime("%B %d, %Y")
+                except Exception:
+                    day_label = "CHECK-IN"
+                    full_date = str(row['timestamp'])
+
+                m_val = row['mood_score']
+                m_str = mood_map.get(m_val, "Okay") if isinstance(m_val, int) else str(m_val)
+                p_val = row['academic_pressure']
+                status = "Needs Attention" if p_val >= 8 else ("Moderate" if p_val >= 5 else "Good")
+
+                logbook_entries.append({
+                    "date": day_label,
+                    "full_date": full_date,
+                    "pressure": int(row['academic_pressure']),
+                    "energy": int(row['energy_level']),
+                    "sleep": float(row['sleep_hours']),
+                    "mood": m_str,
+                    "workload": "High" if row['workload_level'] >= 7 else "Moderate",
+                    "deadlines": int(row['deadlines_count']),
+                    "message": str(row['optional_message']) if pd.notna(row['optional_message']) and str(row['optional_message']) != 'nan' else "",
+                    "status": status,
+                })
+            return logbook_entries
+    except Exception:
+        pass
+
     today = datetime.now()
     return [
         {
@@ -1242,38 +1281,40 @@ def get_mock_logbook():
             "message": "",
             "status": "Moderate",
         },
-        {
-            "date": "MONDAY",
-            "full_date": (today - timedelta(days=2)).strftime("%B %d, %Y"),
-            "pressure": 5, "energy": 7, "sleep": 7.0,
-            "mood": "Good", "workload": "Moderate", "deadlines": 2,
-            "message": "Had a productive study session today.",
-            "status": "Stable",
-        },
-        {
-            "date": "SUNDAY",
-            "full_date": (today - timedelta(days=3)).strftime("%B %d, %Y"),
-            "pressure": 4, "energy": 8, "sleep": 7.5,
-            "mood": "Great", "workload": "Low", "deadlines": 1,
-            "message": "",
-            "status": "Good",
-        },
-        {
-            "date": "SATURDAY",
-            "full_date": (today - timedelta(days=4)).strftime("%B %d, %Y"),
-            "pressure": 3, "energy": 8, "sleep": 8.0,
-            "mood": "Great", "workload": "Low", "deadlines": 1,
-            "message": "Relaxed weekend. Caught up on sleep.",
-            "status": "Good",
-        },
     ]
 
+
 def get_mock_trends():
-    """Return mock trend data for charts."""
-    # ============================
-    # BACKEND INTEGRATION POINT
-    # Replace with: analytics.get_student_trends(student_id, days=7)
-    # ============================
+    """Return trend data dynamically calculated from SQLite dataset (check_ins table)."""
+    try:
+        conn = sqlite3.connect("student_support.db")
+        df = pd.read_sql_query('''
+            SELECT timestamp, sleep_hours, academic_pressure, energy_level, mood_score 
+            FROM check_ins 
+            ORDER BY id ASC
+            LIMIT 7
+        ''', conn)
+        conn.close()
+
+        if not df.empty and len(df) >= 2:
+            days = []
+            for ts in df['timestamp']:
+                try:
+                    dt = datetime.strptime(str(ts)[:10], "%Y-%m-%d")
+                    days.append(dt.strftime("%a"))
+                except Exception:
+                    days.append("Day")
+
+            return {
+                "days": days,
+                "pressure": [int(x) for x in df['academic_pressure']],
+                "sleep": [float(x) for x in df['sleep_hours']],
+                "energy": [int(x) for x in df['energy_level']],
+                "mood_scores": [int(x) for x in df['mood_score']],
+            }
+    except Exception:
+        pass
+
     days = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"]
     return {
         "days": days,
@@ -2240,7 +2281,7 @@ def render_chatbot():
     """Render the full-page AI chatbot."""
     student = get_mock_student()
 
-    st.markdown("""
+    render_html("""
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; margin-top: 12px;">
         <div>
             <div class="section-title" style="margin-bottom: 4px;">AI Support</div>
@@ -2249,7 +2290,7 @@ def render_chatbot():
             </div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
     col_chat, col_deck = st.columns([1.6, 1])
 
@@ -2273,28 +2314,23 @@ def render_chatbot():
                 </div>
                 """
         chat_html += '</div></div>'
-        st.markdown(chat_html, unsafe_allow_html=True)
+        render_html(chat_html)
 
         # Chat input
         user_input = st.chat_input("Type your thoughts...", key="full_chat_input")
         if user_input:
             st.session_state.chat_messages.append({"role": "user", "content": user_input})
-            # ============================
-            # BACKEND INTEGRATION POINT
-            # Replace with: chatbot.get_response(user_input, ai_context)
-            # ai_context from: planner.build_ai_context_payload()
-            # ============================
             response = get_mock_chat_response(user_input)
             st.session_state.chat_messages.append({"role": "ai", "content": response})
             st.rerun()
 
     with col_deck:
         # Contextual Deck
-        st.markdown("""
+        render_html("""
         <div class="harbor-card">
             <div class="card-label">CONTEXTUAL DECK</div>
             <div style="height: 12px;"></div>
-        """, unsafe_allow_html=True)
+        """)
 
         actions = [
             {"icon": "🍅", "text": "Focus Block", "meta": "25:00", "key": "deck_focus"},
@@ -2304,23 +2340,23 @@ def render_chatbot():
         ]
 
         for a in actions:
-            st.markdown(f"""
+            render_html(f"""
             <div class="action-card">
                 <span class="action-icon">{a['icon']}</span>
                 <span class="action-text">{a['text']}</span>
                 <span class="action-meta">{a['meta']}</span>
             </div>
-            """, unsafe_allow_html=True)
+            """)
 
-        st.markdown('</div>', unsafe_allow_html=True)
+        render_html('</div>')
 
         # Quick suggestion buttons
-        st.markdown("""
+        render_html("""
         <div class="harbor-card" style="padding: 20px;">
             <div class="card-label">QUICK PROMPTS</div>
             <div style="height: 8px;"></div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
         prompt_cols = st.columns(2)
         prompts = [
