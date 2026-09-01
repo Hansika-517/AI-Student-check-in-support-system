@@ -2189,18 +2189,27 @@ def render_triage_result():
     </div>
     """, unsafe_allow_html=True)
 
-    # Summary metrics
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Mood", data.get("mood", "Okay"))
-    with col2:
-        st.metric("Energy", f"{data.get('energy_level', 4)}/10")
-    with col3:
-        st.metric("Sleep", f"{data.get('sleep_hours', 5.0)}h")
-    with col4:
-        st.metric("Pressure", f"{data.get('academic_pressure', 8)}/10")
-
-    st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
+    # Summary metrics with white text on dark blue card background
+    render_html(f"""
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
+        <div style="background: #2B5B84; border-radius: 16px; padding: 16px 20px; text-align: center; color: #FFFFFF; box-shadow: 0 2px 8px rgba(43,91,132,0.15);">
+            <div style="font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.8); margin-bottom: 6px;">MOOD</div>
+            <div style="font-family: var(--font-sans); font-size: 22px; font-weight: 700; color: #FFFFFF;">{data.get('mood', 'Okay')}</div>
+        </div>
+        <div style="background: #2B5B84; border-radius: 16px; padding: 16px 20px; text-align: center; color: #FFFFFF; box-shadow: 0 2px 8px rgba(43,91,132,0.15);">
+            <div style="font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.8); margin-bottom: 6px;">ENERGY</div>
+            <div style="font-family: var(--font-sans); font-size: 22px; font-weight: 700; color: #FFFFFF;">{data.get('energy_level', 4)}/10</div>
+        </div>
+        <div style="background: #2B5B84; border-radius: 16px; padding: 16px 20px; text-align: center; color: #FFFFFF; box-shadow: 0 2px 8px rgba(43,91,132,0.15);">
+            <div style="font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.8); margin-bottom: 6px;">SLEEP</div>
+            <div style="font-family: var(--font-sans); font-size: 22px; font-weight: 700; color: #FFFFFF;">{data.get('sleep_hours', 5.0)}h</div>
+        </div>
+        <div style="background: #2B5B84; border-radius: 16px; padding: 16px 20px; text-align: center; color: #FFFFFF; box-shadow: 0 2px 8px rgba(43,91,132,0.15);">
+            <div style="font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.8); margin-bottom: 6px;">PRESSURE</div>
+            <div style="font-family: var(--font-sans); font-size: 22px; font-weight: 700; color: #FFFFFF;">{data.get('academic_pressure', 8)}/10</div>
+        </div>
+    </div>
+    """)
 
     # Triage result card
     render_status_card(triage)
