@@ -13,11 +13,24 @@ Architecture:
     - Backend modules: database.py, scoring.py, analytics.py, planner.py
 """
 
+import os
+import base64
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime, timedelta
 import random
+import time
+
+@st.cache_data
+def get_logo_b64():
+    """Load and encode logo.png into base64 data URI for top nav logo display."""
+    logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+    if os.path.exists(logo_path):
+        with open(logo_path, "rb") as f:
+            encoded = base64.b64encode(f.read()).decode("utf-8")
+            return f"data:image/png;base64,{encoded}"
+    return None
 
 TASKS = [
     {"name": "DBMS Assignment", "days_until_due": 1, "estimated_hours": 2},
@@ -46,6 +59,85 @@ st.set_page_config(
 # ============================================================
 # DESIGN SYSTEM — CSS
 # ============================================================
+import streamlit.components.v1 as components
+
+def render_html(html_str):
+    """Safely render HTML in Streamlit without triggering Markdown code block formatting."""
+    cleaned = "\n".join(line.lstrip() for line in html_str.splitlines())
+    st.markdown(cleaned, unsafe_allow_html=True)
+
+
+def inject_mouse_bubble():
+    """Injects a subtle light blue mouse tracking glow effect positioned behind widgets."""
+    components.html(
+        """
+        <script>
+        const parentDoc = window.parent.document;
+        let bubble = parentDoc.getElementById('mouse-bubble');
+        
+        if (!bubble) {
+            bubble = parentDoc.createElement('div');
+            bubble.id = 'mouse-bubble';
+            bubble.style.position = 'fixed';
+            bubble.style.pointerEvents = 'none';
+            bubble.style.zIndex = '0';
+            bubble.style.top = '0';
+            bubble.style.left = '0';
+            bubble.style.transform = 'translate3d(-2000px, -2000px, 0)';
+            parentDoc.body.appendChild(bubble);
+
+            let mouseX = -2000;
+            let mouseY = -2000;
+            let currentX = -2000;
+            let currentY = -2000;
+
+            parentDoc.addEventListener('mousemove', function(e) {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            });
+
+            function animate() {
+                if (bubble.style.display !== 'none') {
+                    // Smooth lerp movement (0.14 factor)
+                    currentX += (mouseX - currentX) * 0.14;
+                    currentY += (mouseY - currentY) * 0.14;
+                    const halfSize = (parseFloat(bubble.style.width) || 300) / 2;
+                    bubble.style.transform = `translate3d(${currentX - halfSize}px, ${currentY - halfSize}px, 0)`;
+                }
+                requestAnimationFrame(animate);
+            }
+            animate();
+        }
+
+        // Apply compact size, background z-index, and subtle glow opacity
+        bubble.style.width = '300px';
+        bubble.style.height = '300px';
+        bubble.style.borderRadius = '50%';
+        bubble.style.background = 'radial-gradient(circle, rgba(74, 127, 181, 0.18) 0%, rgba(74, 127, 181, 0.06) 40%, transparent 70%)';
+        bubble.style.zIndex = '0';
+        bubble.style.pointerEvents = 'none';
+        bubble.style.display = 'block';
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+def hide_mouse_bubble():
+    """Hides the mouse tracking bubble effect."""
+    components.html(
+        """
+        <script>
+        const parentDoc = window.parent.document;
+        let bubble = parentDoc.getElementById('mouse-bubble');
+        if (bubble) {
+            bubble.style.display = 'none';
+        }
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 def inject_global_css():
     """Inject the complete design system CSS."""
@@ -112,7 +204,7 @@ def inject_global_css():
     [data-testid="collapsedControl"] {display: none;}
 
     /* ========================================
-       CONTENT CONTAINER
+       CONTENT CONTAINER & STACKING CONTEXT
     ======================================== */
     .block-container {
         max-width: 1200px !important;
@@ -120,6 +212,19 @@ def inject_global_css():
         padding-left: 2rem !important;
         padding-right: 2rem !important;
         padding-bottom: 2rem !important;
+        position: relative;
+        z-index: 2;
+    }
+
+    /* Keep cards and interactive widgets stacked above background glow */
+    .harbor-card,
+    .harbor-card-blue,
+    .harbor-nav,
+    div[data-testid="stVerticalBlockBorderWrapper"],
+    .stButton,
+    [data-testid="stChatInput"] {
+        position: relative;
+        z-index: 2;
     }
 
     /* ========================================
@@ -193,6 +298,68 @@ def inject_global_css():
         color: var(--text-primary);
         border-bottom-color: var(--accent-blue);
     }
+
+    /* Clean Header Navigation Buttons */
+    div[data-testid="stColumn"] button[key^="nav_btn_"] {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        font-family: var(--font-sans) !important;
+        font-size: 15px !important;
+        color: #5A6B7F !important;
+        font-weight: 500 !important;
+        border-radius: 0 !important;
+        border-bottom: 2.5px solid transparent !important;
+        padding: 6px 0 !important;
+    }
+    div[data-testid="stColumn"] button[key^="nav_btn_"]:hover {
+        color: #1A2332 !important;
+        background: transparent !important;
+    }
+    div[data-testid="stColumn"] button[key^="nav_btn_"][data-testid="stBaseButton-primary"],
+    div[data-testid="stColumn"] button[key^="nav_btn_"][kind="primary"] {
+        color: #1A2332 !important;
+        font-weight: 700 !important;
+        border-bottom: 2.5px solid #4A7FB5 !important;
+        background: transparent !important;
+    }
+
+    /* Solid White Card Box for st.container(border=True) */
+    div[data-testid="stVerticalBlockBorderWrapper"],
+    div[data-testid="stVerticalBlockBorderWrapper"] > div,
+    [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] {
+        background-color: #FFFFFF !important;
+        background: #FFFFFF !important;
+        border-radius: 20px !important;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        border: 1px solid #DDE5EE !important;
+        box-shadow: 0 2px 12px rgba(26, 35, 50, 0.05) !important;
+        padding: 24px 28px !important;
+        margin-top: 12px !important;
+        margin-bottom: 16px !important;
+    }
+
+    /* Contextual Deck Action Pill Buttons */
+    div[data-testid="stColumn"] button[key^="deck_timer_"],
+    button[key^="deck_timer_"] {
+        background: #E8EFF6 !important;
+        color: #2B5B84 !important;
+        border: 1px solid #D6E4F0 !important;
+        border-radius: 14px !important;
+        font-weight: 600 !important;
+        font-size: 13.5px !important;
+        padding: 12px 18px !important;
+        transition: all 0.2s ease !important;
+    }
+    div[data-testid="stColumn"] button[key^="deck_timer_"]:hover,
+    button[key^="deck_timer_"]:hover {
+        background: #2B5B84 !important;
+        color: #FFFFFF !important;
+        border-color: #2B5B84 !important;
+        transform: translateY(-1px) !important;
+    }
+
     .harbor-nav-right {
         display: flex;
         align-items: center;
@@ -824,11 +991,65 @@ def inject_global_css():
 
 
 # ============================================================
+# TIMER CONTRACT HELPERS & DISPATCH
+# ============================================================
+
+def format_timer_display(seconds: int) -> str:
+    """Formats seconds into MM:SS (or HH:MM:SS if >= 3600s). Clamps negative to 00:00."""
+    sec = max(0, int(seconds))
+    hrs = sec // 3600
+    mins = (sec % 3600) // 60
+    secs = sec % 60
+    if hrs > 0:
+        return f"{hrs:02d}:{mins:02d}:{secs:02d}"
+    return f"{mins:02d}:{secs:02d}"
+
+
+def compute_timer_progress(total: int, remaining: int) -> float:
+    """Computes completion progress fraction between 0.0 and 1.0."""
+    if total <= 0:
+        return 1.0
+    rem = max(0, min(total, remaining))
+    return float(total - rem) / float(total)
+
+
+def start_timer_session(preset_key: str, title: str, duration_seconds: int, auto_start: bool = True):
+    """Safely transitions state and redirects to the Timer page."""
+    st.session_state.timer_preset = preset_key
+    st.session_state.timer_title = title
+    st.session_state.timer_total = duration_seconds
+    st.session_state.timer_remaining = duration_seconds
+    st.session_state.timer_completed = False
+    st.session_state.timer_running = auto_start
+    if auto_start:
+        st.session_state.timer_end_time = time.time() + duration_seconds
+    else:
+        st.session_state.timer_end_time = None
+
+    st.session_state.current_page = "timer"
+    st.session_state.selected_reset = preset_key
+    try:
+        st.rerun()
+    except Exception:
+        pass
+
+
+# ============================================================
 # SESSION STATE INITIALIZATION
 # ============================================================
 
 def init_session_state():
-    """Initialize all session state variables."""
+    """Initialize all session state variables and sync page query params."""
+    # Read and sync routing from query params
+    try:
+        page_param = st.query_params.get("page")
+        if page_param:
+            p = page_param[0] if isinstance(page_param, list) else page_param
+            if p in ["home", "insights", "logbook", "resources", "chatbot", "checkin", "timer"]:
+                st.session_state.current_page = p
+    except Exception:
+        pass
+
     defaults = {
         "current_page": "home",
         "checkin_submitted": False,
@@ -836,13 +1057,22 @@ def init_session_state():
         "chat_messages": [
             {
                 "role": "ai",
-                "content": "I've looked at your workload for today. Let's focus on one 25-minute block instead of trying to finish everything at once. How does that feel?"
+                "content": "I've analyzed your schedule. Today, let's focus on two 45-minute deep work blocks instead of a long grind. How does that feel?"
             }
         ],
         "selected_reset": None,
         "selected_action": None,
         "logbook_detail": None,
         "show_triage": False,
+        # Timer Core State
+        "timer_total": 900,
+        "timer_remaining": 900,
+        "timer_end_time": None,
+        "timer_running": False,
+        "timer_title": "15-min Walk",
+        "timer_preset": "walk",
+        "timer_completed": False,
+        "timer_auto_started": False,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -861,8 +1091,8 @@ def get_mock_student():
     # Replace with: database.get_student(student_id)
     # ============================
     return {
-        "name": "Hansika",
-        "initials": "HS",
+        "name": "Maya O.",
+        "initials": "MO",
         "student_id": "student_001",
     }
 
@@ -874,19 +1104,23 @@ def get_mock_triage():
         plan = ui['plan']
         return {
             "status": "High Academic Pressure" if score['support_level'] == "High" else "Moderate Pressure",
-            "capacity": 42,
-            "priority": "NEEDS ATTENTION" if score['support_level'] == "High" else "STABLE",
+            "capacity": 15 if score['support_level'] == "High" else 42,
+            "priority": "CRITICAL" if score['support_level'] == "High" else "STABLE",
             "support_level": score['support_level'],
             "ai_analysis": st.session_state.get('system_data', {}).get('ai_prompt_context', "").split("Instructions for AI")[0][-150:] + "...",
             "recommended_action": plan['strategy_recommended'],
-            "best_focus_window": "10:30 AM - 12:15 PM",
+            "best_focus_window": "10:30 AM – 12:15 PM",
             "study_strategy": plan['strategy_recommended'],
         }
     return {
-        "status": "Needs Attention", "capacity": 42, "priority": "NEEDS ATTENTION",
-        "support_level": "High", "ai_analysis": "Please check in first.",
-        "recommended_action": "Check-in to see recommendations.",
-        "best_focus_window": "-", "study_strategy": "-",
+        "status": "High-Stakes Week",
+        "capacity": 15,
+        "priority": "CRITICAL",
+        "support_level": "High",
+        "ai_analysis": "Your sleep track shows a 3-day deficit. Combined with the upcoming Econ midterm, your baseline stress is elevated. We should prioritize restoration over rigid schedules.",
+        "recommended_action": "Postpone 2pm Group Sync",
+        "best_focus_window": "10:30 AM – 12:15 PM",
+        "study_strategy": "Restoration First",
     }
 
 def get_mock_sleep_data():
@@ -897,10 +1131,10 @@ def get_mock_sleep_data():
     # ============================
     return {
         "current": 5.2,
-        "history": [4.8, 6.1, 5.0, 6.5, 7.2, 5.2],
+        "history": [4.8, 5.0, 4.2, 6.8, 7.2, 5.2],
         "days": ["Wed", "Thu", "Fri", "Sat", "Sun", "Mon"],
-        "deficit": -1.8,
-        "insight": "Your sleep has been below your usual level this week.",
+        "deficit": -2.4,
+        "insight": "Deep sleep was interrupted. Expect a significant mid-afternoon energy dip.",
     }
 
 def get_mock_deadlines():
@@ -912,25 +1146,20 @@ def get_mock_deadlines():
     # ============================
     return [
         {
-            "title": "Data Structures Midterm",
+            "title": "Microeconomics Midterm",
             "time": "09:00 AM",
             "when": "Tomorrow",
             "note": "Needs active retrieval practice",
-            "color": "orange",
+            "color": "red",
+            "course": "ECON 201",
         },
         {
-            "title": "Python Project Submission",
+            "title": "Sustainability Lab Report",
             "time": "05:00 PM",
             "when": "Friday",
-            "note": "Final polishing phase",
+            "note": "Polishing phase",
             "color": "blue",
-        },
-        {
-            "title": "Technical Writing Essay",
-            "time": "11:59 PM",
-            "when": "Next Monday",
-            "note": "Draft review complete",
-            "color": "green",
+            "course": "ENVS 110",
         },
     ]
 
@@ -939,15 +1168,35 @@ def get_mock_resources():
     if system_data and 'resources' in system_data:
         mapped = []
         for r in system_data['resources']:
+            words = r.get('name', 'Peer Tutor').split()
+            initials = "".join([w[0].upper() for w in words[:2]]) if words else "PT"
             mapped.append({
-                "category": "SUPPORT",
-                "name": r['name'],
-                "initials": r['name'][0:2].upper(),
-                "availability": "Available",
-                "description": r['description']
+                "category": "Academic Support",
+                "name": r.get('name', 'Peer Tutor'),
+                "initials": initials,
+                "availability": "Available Today",
+                "description": r.get('description', 'Student support resource')
             })
-        return mapped
-    return []
+        if mapped:
+            return mapped
+
+    return [
+        {
+            "name": "Alex Hudson",
+            "initials": "AH",
+            "category": "Economics Peer Tutor",
+            "availability": "Today",
+            "description": "Drop-in peer tutoring for ECON 201 and statistical methods.",
+        },
+        {
+            "name": "Counseling Center",
+            "initials": "CC",
+            "category": "Mental Health Support",
+            "availability": "Same-day intake",
+            "description": "Confidential individual counseling and de-escalation sessions.",
+        },
+    ]
+
 
 def get_mock_logbook():
     """Return mock check-in history."""
@@ -1060,318 +1309,408 @@ def get_mock_chat_response(user_message):
 # ============================================================
 
 def render_navigation():
-    """Render the top navigation bar."""
+    """Render the top navigation bar with the custom logo."""
     student = get_mock_student()
     current = st.session_state.current_page
+    logo_src = get_logo_b64()
 
-    # Build active class markers
-    def active(page):
-        return "active" if current == page or (current == "home" and page == "insights_nav") else ""
+    logo_html = f'<img src="{logo_src}" style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover;" alt="Harbor Logo">' if logo_src else '<div class="harbor-logo">H</div>'
 
-    st.markdown(f"""
+    def active_cls(page_key):
+        return "active" if (current == page_key or (current not in ["insights", "logbook", "resources"] and page_key == "home")) else ""
+
+    render_html(f"""
     <div class="harbor-nav">
-        <div class="harbor-nav-left">
-            <div class="harbor-logo">H</div>
-            <div class="harbor-brand">
-                <h1>Harbor</h1>
-                <span>Student Pulse</span>
-            </div>
+        <div class="harbor-nav-left" style="display: flex; align-items: center; gap: 14px;">
+            {logo_html}
+            <h1 style="font-family: var(--font-sans); font-size: 22px; font-weight: 700; color: var(--text-primary); margin: 0; line-height: 1; letter-spacing: 1.5px; text-transform: uppercase;">
+                Harbor
+            </h1>
         </div>
         <div class="harbor-nav-center">
-            <a class="{'active' if current in ['home'] else ''}"
-               onclick="window.location.href='?page=home'"
-               style="cursor:pointer;">Home</a>
-            <a class="{'active' if current == 'insights' else ''}"
-               onclick="window.location.href='?page=insights'"
-               style="cursor:pointer;">Insights</a>
-            <a class="{'active' if current == 'logbook' else ''}"
-               onclick="window.location.href='?page=logbook'"
-               style="cursor:pointer;">Logbook</a>
-            <a class="{'active' if current == 'resources' else ''}"
-               onclick="window.location.href='?page=resources'"
-               style="cursor:pointer;">Resources</a>
+            <a href="?page=home" target="_self" class="{active_cls('home')}">Home</a>
+            <a href="?page=insights" target="_self" class="{active_cls('insights')}">Insights</a>
+            <a href="?page=logbook" target="_self" class="{active_cls('logbook')}">Logbook</a>
+            <a href="?page=resources" target="_self" class="{active_cls('resources')}">Resources</a>
         </div>
         <div class="harbor-nav-right">
             <div class="harbor-avatar">{student['initials']}</div>
             <span class="harbor-username">{student['name']}</span>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
-    # Streamlit-based navigation using columns for reliable page switching
-    nav_cols = st.columns([1, 1, 1, 1, 1, 4])
-    with nav_cols[0]:
-        if st.button("🏠 Home", key="nav_home", use_container_width=True):
-            st.session_state.current_page = "home"
-            st.rerun()
-    with nav_cols[1]:
-        if st.button("📊 Insights", key="nav_insights", use_container_width=True):
-            st.session_state.current_page = "insights"
-            st.rerun()
-    with nav_cols[2]:
-        if st.button("📖 Logbook", key="nav_logbook", use_container_width=True):
-            st.session_state.current_page = "logbook"
-            st.rerun()
-    with nav_cols[3]:
-        if st.button("🧭 Resources", key="nav_resources", use_container_width=True):
-            st.session_state.current_page = "resources"
-            st.rerun()
-    with nav_cols[4]:
-        if st.button("💬 Chat", key="nav_chat", use_container_width=True):
-            st.session_state.current_page = "chatbot"
-            st.rerun()
-
-    st.markdown('<div style="height: 8px;"></div>', unsafe_allow_html=True)
 
 
 # ============================================================
 # PAGE: HOME / DASHBOARD
 # ============================================================
 
+# ============================================================
+# PAGE: HOME / DASHBOARD (Mockups 1, 2, 3 Redesign)
+# ============================================================
+
 def render_home():
-    """Render the main home/dashboard page."""
+    """Render the main home/dashboard page in a clean, minimal style matching Mockups 1, 2, 3."""
+    inject_mouse_bubble()
+
     student = get_mock_student()
     triage = get_mock_triage()
     sleep_data = get_mock_sleep_data()
     deadlines = get_mock_deadlines()
+    first_name = student['name'].split()[0]
 
-    # Day of week
-    day_name = datetime.now().strftime("%A").upper()
+    # --- Hero Section (Mockups 1 & 2) ---
+    hero_col1, hero_col2 = st.columns([3.2, 1])
+    with hero_col1:
+        render_html(f"""
+        <div style="margin-top: 24px; margin-bottom: 24px;">
+            <div style="font-family: var(--font-sans); font-size: 11px; font-weight: 600; letter-spacing: 2.5px; text-transform: uppercase; color: var(--accent-blue); margin-bottom: 12px;">
+                — MORNING ALIGNMENT &middot; TUESDAY
+            </div>
+            <h1 style="font-family: var(--font-serif); font-size: 48px; font-weight: 400; color: var(--text-primary); line-height: 1.15; margin: 0 0 12px 0;">
+                Let's find your <span style="font-style: italic; color: #4A7FB5;">rhythm</span> today, {first_name}.
+            </h1>
+        </div>
+        """)
+    with hero_col2:
+        render_html('<div style="height: 42px;"></div>')
+        if st.button("Begin Check-in", key="home_begin_checkin", use_container_width=True):
+            st.session_state.current_page = "checkin"
+            st.rerun()
 
-    # --- Hero Section ---
-    st.markdown(f"""
-    <div class="eyebrow">MORNING CHECK-IN · {day_name}</div>
-    <div class="hero-heading">
-        Let's find your<br>
-        <span class="accent">rhythm</span> today, {student['name']}.
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- Main Status + Recovery Cards ---
-    col_main, col_side = st.columns([2.2, 1])
-
-    with col_main:
+    # --- Tier 1 Grid: Status & Recovery (Mockup 1) ---
+    t1_col1, t1_col2 = st.columns([1.5, 1], gap="medium")
+    with t1_col1:
         render_status_card(triage)
-
-    with col_side:
+    with t1_col2:
         render_recovery_card(sleep_data)
         render_intention_card()
 
-    st.markdown('<div style="height: 24px;"></div>', unsafe_allow_html=True)
+    render_html('<div style="height: 12px;"></div>')
 
-    # --- Upcoming Pressure + Support Network ---
-    col_pressure, col_support = st.columns([1.2, 1])
-
-    with col_pressure:
+    # --- Tier 2 Grid: Pressure & Support (Mockup 2) ---
+    t2_col1, t2_col2 = st.columns([1, 1], gap="medium")
+    with t2_col1:
         render_upcoming_pressure(deadlines)
-
-    with col_support:
+    with t2_col2:
         render_support_network()
 
-    st.markdown('<div style="height: 24px;"></div>', unsafe_allow_html=True)
+    render_html('<div style="height: 12px;"></div>')
 
-    # --- AI Chat + Action Plan ---
-    col_chat, col_actions = st.columns([1.5, 1])
-
-    with col_chat:
-        render_chat_section()
-
-    with col_actions:
-        render_action_plan()
-        render_reset_card()
+    # --- Tier 3 Grid: Unified Harmony AI Support & Contextual Deck (Mockup 3) ---
+    render_unified_harmony_card()
 
 
 def render_status_card(triage):
-    """Render the main AI triage status card."""
-    capacity_color = "#E8963A" if triage["capacity"] < 50 else "#4AA564"
+    """Render the main AI triage status card matching Mockup 1."""
+    capacity = triage.get("capacity", 15)
+    is_critical = capacity < 30 or triage.get("priority") in ["CRITICAL", "NEEDS ATTENTION"]
+    badge_bg = "#FDF1F0" if is_critical else "#EBF6F0"
+    badge_color = "#D9534F" if is_critical else "#388E3C"
+    dot_color = "#D9534F" if is_critical else "#4AA564"
 
-    st.markdown(f"""
-    <div class="harbor-card" style="padding: 32px;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+    render_html(f"""
+    <div class="harbor-card" style="padding: 28px 32px; min-height: 290px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
             <div>
                 <div class="card-label">CURRENT STATUS</div>
-                <div style="font-family: var(--font-serif); font-size: 26px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">
+                <div style="font-family: var(--font-serif); font-size: 28px; font-weight: 500; color: var(--text-primary); margin-bottom: 12px;">
                     {triage['status']}
                 </div>
             </div>
-            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
-                <div class="capacity-badge">
-                    <span class="capacity-dot" style="background: {capacity_color};"></span>
-                    Capacity: {triage['capacity']}%
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: {badge_bg}; color: {badge_color}; font-family: var(--font-sans); font-size: 13px; font-weight: 600; padding: 6px 16px; border-radius: 20px;">
+                    <span style="width: 7px; height: 7px; border-radius: 50%; background: {dot_color};"></span>
+                    Capacity: {capacity}%
                 </div>
-                <div style="font-family: var(--font-sans); font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--text-tertiary);">
-                    PRIORITY: {triage['priority']}
+                <div style="font-family: var(--font-sans); font-size: 9px; font-weight: 700; letter-spacing: 1.5px; color: var(--text-tertiary); text-transform: uppercase; margin-top: 2px;">
+                    PRIORITY: {triage.get('priority', 'CRITICAL')}
                 </div>
             </div>
         </div>
-        <div class="harbor-divider"></div>
-        <div style="display: flex; gap: 24px; margin-top: 20px;">
-            <div style="flex: 1.2;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                    <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-blue);"></div>
-                    <span class="card-label" style="margin-bottom: 0;">AI TRIAGE ANALYSIS</span>
+        
+        <div style="display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; margin-bottom: 20px;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-blue); margin-top: 5px; flex-shrink: 0;"></span>
+            <div>
+                <div style="font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">
+                    AI Triage Analysis
                 </div>
-                <p style="font-family: var(--font-sans); font-size: 14px; line-height: 1.75; color: var(--text-secondary); margin: 0;">
+                <div style="font-family: var(--font-sans); font-size: 13.5px; color: var(--text-secondary); line-height: 1.6;">
                     {triage['ai_analysis']}
-                </p>
-            </div>
-            <div style="flex: 0.8; display: flex; flex-direction: column; gap: 10px;">
-                <div class="harbor-card-subtle">
-                    <div class="card-label" style="color: var(--accent-blue); margin-bottom: 4px;">RECOMMENDED ACTION</div>
-                    <div style="font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: var(--text-primary);">
-                        {triage['recommended_action']}
-                    </div>
                 </div>
-                <div class="harbor-card-subtle">
-                    <div class="card-label" style="color: var(--accent-blue); margin-bottom: 4px;">BEST FOCUS WINDOW</div>
-                    <div style="font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: var(--text-primary);">
-                        {triage['best_focus_window']}
-                    </div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; margin-top: auto;">
+            <div style="background: var(--bg-blue-subtle); border-radius: var(--radius-md); padding: 12px 16px;">
+                <div style="font-family: var(--font-sans); font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 4px;">
+                    RECOMMENDED ACTION
+                </div>
+                <div style="font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: var(--text-primary);">
+                    {triage.get('recommended_action', 'Postpone 2pm Group Sync')}
+                </div>
+            </div>
+            <div style="background: var(--bg-blue-subtle); border-radius: var(--radius-md); padding: 12px 16px;">
+                <div style="font-family: var(--font-sans); font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 4px;">
+                    COGNITIVE PEAK
+                </div>
+                <div style="font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: var(--text-primary);">
+                    {triage.get('best_focus_window', '10:30 AM – 12:15 PM')}
                 </div>
             </div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def render_recovery_card(sleep_data):
-    """Render the blue recovery/sleep status card."""
-    # Build sleep bars
-    max_sleep = max(sleep_data["history"])
+    """Render the recovery status card in deep blue matching Mockup 1."""
+    deficit_val = sleep_data.get('deficit', -2.4)
+    deficit_str = f"{deficit_val:+.1f}h" if isinstance(deficit_val, (int, float)) else str(deficit_val)
+    
     bars_html = ""
-    for val in sleep_data["history"]:
-        height = max(8, int((val / max_sleep) * 55))
-        bars_html += f'<div class="sleep-bar" style="height: {height}px;"></div>'
+    history = sleep_data.get('history', [4.8, 5.0, 4.2, 6.8, 7.2, 5.2])
+    for i, val in enumerate(history):
+        h = max(20, min(100, int((val / 8.0) * 100)))
+        is_highlight = (i >= len(history) - 2)
+        bg = "rgba(255,255,255,0.95)" if is_highlight else "rgba(255,255,255,0.35)"
+        glow = "box-shadow: 0 0 10px rgba(255,255,255,0.4);" if is_highlight else ""
+        bars_html += f'<div style="flex: 1; height: {h}%; background: {bg}; border-radius: 8px; {glow}"></div>'
 
-    deficit_display = f"{sleep_data['deficit']}h"
-
-    st.markdown(f"""
-    <div class="harbor-card-blue">
+    render_html(f"""
+    <div class="harbor-card-blue" style="padding: 22px 26px; margin-bottom: 12px;">
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div class="card-label-blue">RECOVERY STATUS</div>
-            <div style="font-family: var(--font-sans); font-size: 28px; font-weight: 700; color: #FF9F6B;">
-                {deficit_display}
+            <div style="font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.7);">
+                REST DEFICIT
+            </div>
+            <div style="font-family: var(--font-sans); font-size: 24px; font-weight: 700; color: #FFFFFF;">
+                {deficit_str}
             </div>
         </div>
-        <div style="margin-top: 2px; margin-bottom: 2px;">
-            <span style="font-family: var(--font-sans); font-size: 13px; color: rgba(255,255,255,0.7);">Sleep</span>
-            <span style="font-family: var(--font-sans); font-size: 18px; font-weight: 600; color: white; margin-left: 8px;">
-                {sleep_data['current']} hrs
-            </span>
+        
+        <div style="display: flex; align-items: flex-end; gap: 8px; height: 52px; margin: 14px 0 12px 0;">
+            {bars_html}
         </div>
-        <div class="sleep-bars">{bars_html}</div>
-        <p style="font-family: var(--font-sans); font-size: 12px; color: rgba(255,255,255,0.65); margin: 0; line-height: 1.5;">
+
+        <div style="font-family: var(--font-sans); font-size: 12px; line-height: 1.5; color: rgba(255,255,255,0.9);">
             {sleep_data['insight']}
-        </p>
+        </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def render_intention_card():
-    """Render the intention card with Begin Check-in button."""
-    st.markdown("""
-    <div class="harbor-card" style="text-align: center; padding: 28px;">
-        <div class="card-label">INTENTION</div>
-        <div style="font-family: var(--font-serif); font-size: 24px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px;">
+    """Render the daily intention card matching Mockup 1."""
+    render_html("""
+    <div class="harbor-card" style="padding: 18px 24px; margin-bottom: 0;">
+        <div class="card-label" style="margin-bottom: 4px;">INTENTION</div>
+        <div style="font-family: var(--font-serif); font-size: 20px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
             Steady Progress
         </div>
-        <p style="font-family: var(--font-sans); font-size: 13px; color: var(--text-tertiary); margin-bottom: 20px;">
+        <div style="font-family: var(--font-sans); font-size: 12px; color: var(--text-tertiary);">
             Small steps count today.
-        </p>
+        </div>
     </div>
-    """, unsafe_allow_html=True)
-
-    if st.button("Begin Check-in", key="begin_checkin", use_container_width=True):
-        st.session_state.current_page = "checkin"
-        st.rerun()
+    """)
 
 
 def render_upcoming_pressure(deadlines):
-    """Render the upcoming pressure timeline card."""
+    """Render upcoming pressure card matching Mockup 2."""
     timeline_html = ""
-    for d in deadlines:
-        dot_class = f"timeline-dot-{d['color']}"
+    for i, d in enumerate(deadlines):
+        dot_color = "#E05656" if d.get('color') == "red" else "#4A7FB5"
+        is_last = (i == len(deadlines) - 1)
+        line_html = "" if is_last else f'<div style="position: absolute; left: 5px; top: 18px; width: 2px; height: calc(100% - 10px); background: #DDE5EE;"></div>'
+
         timeline_html += f"""
-        <div class="timeline-item">
-            <div class="timeline-dot {dot_class}"></div>
-            <div class="timeline-content">
-                <h4>{d['title']}</h4>
-                <p>{d['note']} · {d['when']}</p>
+        <div style="position: relative; display: flex; align-items: flex-start; gap: 16px; padding: 10px 0;">
+            <div style="position: relative; flex-shrink: 0; width: 12px; height: 12px; margin-top: 4px;">
+                <div style="width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid {dot_color}; background: #FFFFFF;"></div>
+                {line_html}
             </div>
-            <span class="timeline-time">{d['time']}</span>
+            <div style="flex: 1;">
+                <div style="font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: var(--text-primary);">
+                    {d['title']}
+                </div>
+                <div style="font-family: var(--font-sans); font-size: 12px; color: var(--text-tertiary); margin-top: 2px;">
+                    {d.get('note', '')} &middot; {d.get('when', '')}
+                </div>
+            </div>
+            <div style="font-family: var(--font-sans); font-size: 12px; color: var(--text-tertiary); font-weight: 500;">
+                {d.get('time', '')}
+            </div>
         </div>
         """
 
-    st.markdown(f"""
-    <div class="harbor-card">
-        <div class="section-title">Upcoming Pressure</div>
+    render_html(f"""
+    <div class="harbor-card" style="padding: 26px 30px; min-height: 200px;">
+        <div style="font-family: var(--font-serif); font-size: 22px; font-weight: 500; color: var(--text-primary); margin-bottom: 16px;">
+            Upcoming Pressure
+        </div>
         {timeline_html}
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def render_support_network():
-    """Render the support network card."""
-    resources = get_mock_resources()[:2]  # Show first 2 on home
+    """Render the support network card matching Mockup 2 with 24/7 helpline resources."""
+    resources = get_mock_resources()[:1]
+    r = resources[0] if resources else {
+        "name": "Alex Hudson",
+        "initials": "AH",
+        "category": "Economics Peer Tutor",
+        "availability": "Today",
+    }
 
-    cards_html = ""
-    for r in resources:
-        cards_html += f"""
-        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border-subtle);">
-            <div class="resource-avatar">{r['initials']}</div>
-            <div style="flex: 1;">
-                <div style="font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: var(--text-primary);">{r['name']}</div>
-                <div style="font-family: var(--font-sans); font-size: 12px; color: var(--text-tertiary);">{r['category']} · {r['availability']}</div>
-            </div>
-            <div class="harbor-btn-outline" style="font-size: 12px; padding: 6px 14px;">Request</div>
+    render_html(f"""
+    <div class="harbor-card" style="padding: 24px 28px; min-height: 200px;">
+        <div style="font-family: var(--font-serif); font-size: 22px; font-weight: 500; color: var(--text-primary); margin-bottom: 14px;">
+            Support Network
         </div>
-        """
-
-    st.markdown(f"""
-    <div class="harbor-card">
-        <div class="section-title">Support Network</div>
-        {cards_html}
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def render_chat_section():
-    """Render the embedded AI chat section on home."""
-    st.markdown("""
-    <div class="harbor-card" style="padding: 28px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <div style="font-family: var(--font-serif); font-size: 20px; font-weight: 500; color: var(--text-primary);">
-                AI Support
+        <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-blue-subtle); border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="width: 42px; height: 42px; border-radius: 50%; background: #2B5B84; display: flex; align-items: center; justify-content: center; color: white; font-family: var(--font-sans); font-size: 15px; font-weight: 600;">
+                    {r['initials']}
+                </div>
+                <div>
+                    <div style="font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: var(--text-primary);">
+                        {r['name']}
+                    </div>
+                    <div style="font-family: var(--font-sans); font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
+                        {r['category']} &middot; {r.get('availability', 'Today')}
+                    </div>
+                </div>
             </div>
-            <div style="font-family: var(--font-sans); font-size: 13px; color: var(--text-secondary);">
-                <span class="chat-active-dot"></span>Harmony is active
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    """)
 
-    # Display chat messages
-    chat_html = '<div class="chat-container">'
-    for msg in st.session_state.chat_messages:
-        if msg["role"] == "ai":
-            chat_html += f'<div class="chat-bubble-ai">{msg["content"]}</div>'
-        else:
-            chat_html += f'<div class="chat-bubble-user">{msg["content"]}</div>'
-    chat_html += '</div>'
-
-    st.markdown(chat_html, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # Chat input
-    user_input = st.chat_input("Type your thoughts...", key="home_chat_input")
-    if user_input:
-        st.session_state.chat_messages.append({"role": "user", "content": user_input})
-        response = get_mock_chat_response(user_input)
-        st.session_state.chat_messages.append({"role": "ai", "content": response})
+    if st.button("Request", key="req_support_network_primary", use_container_width=True):
+        st.session_state.selected_action = "request_tutor"
+        st.session_state.current_page = "resources"
         st.rerun()
+
+    render_html("""
+        </div>
+
+        <!-- 24/7 Helplines & Emergency Support -->
+        <div style="border-top: 1px solid var(--border-subtle); padding-top: 12px; margin-top: 10px;">
+            <div style="font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 10px;">
+                24/7 HELPLINES & CRISIS SUPPORT
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px 14px;">
+                    <div>
+                        <div style="font-family: var(--font-sans); font-size: 12.5px; font-weight: 600; color: var(--text-primary);">
+                            💬 Crisis Text Line
+                        </div>
+                        <div style="font-family: var(--font-sans); font-size: 11px; color: var(--text-tertiary);">
+                            Text HOME to 741741
+                        </div>
+                    </div>
+                    <span style="font-family: var(--font-sans); font-size: 11.5px; font-weight: 700; color: #3B6B9A; background: #E8EFF6; padding: 4px 10px; border-radius: 6px;">
+                        📲 741741
+                    </span>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px 14px;">
+                    <div>
+                        <div style="font-family: var(--font-sans); font-size: 12.5px; font-weight: 600; color: var(--text-primary);">
+                            🏫 Campus Wellness
+                        </div>
+                        <div style="font-family: var(--font-sans); font-size: 11px; color: var(--text-tertiary);">
+                            Support Center
+                        </div>
+                    </div>
+                    <a href="tel:18002738255" style="font-family: var(--font-sans); font-size: 12px; font-weight: 700; color: #3B6B9A; text-decoration: none; background: #E8EFF6; padding: 4px 10px; border-radius: 6px;">
+                        📞 (800) 273-8255
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    """)
+
+
+def render_unified_harmony_card():
+    """Render Tier 3 Unified Harmony AI Support & Contextual Deck Card matching Mockup 3."""
+    with st.container(border=True):
+        render_html("""
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: var(--text-primary);">
+                <span style="display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #4A7FB5; box-shadow: 0 0 8px rgba(74, 127, 181, 0.6);"></span>
+                Harmony is active
+            </div>
+            <div style="font-family: var(--font-sans); font-size: 10px; font-weight: 600; letter-spacing: 2px; color: var(--text-tertiary); text-transform: uppercase;">
+                ENCRYPTED CHANNEL
+            </div>
+        </div>
+        """)
+
+        c_chat, c_deck = st.columns([1.3, 1], gap="large")
+
+        with c_chat:
+            # Chat Messages
+            chat_html = '<div style="max-height: 280px; overflow-y: auto; padding: 4px 0 12px 0;">'
+            for msg in st.session_state.chat_messages:
+                if msg["role"] == "ai":
+                    chat_html += f"""
+                    <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px;">
+                        <div style="width: 32px; height: 32px; border-radius: 50%; background: #D6E4F0; flex-shrink: 0; margin-top: 2px;"></div>
+                        <div style="background: #EEF2F7; border-radius: 4px 18px 18px 18px; padding: 14px 18px; font-family: var(--font-sans); font-size: 13.5px; line-height: 1.6; color: var(--text-primary); max-width: 85%;">
+                            {msg["content"]}
+                        </div>
+                    </div>
+                    """
+                else:
+                    chat_html += f"""
+                    <div style="display: flex; align-items: flex-start; justify-content: flex-end; gap: 10px; margin-bottom: 14px;">
+                        <div style="background: #2B5B84; color: #FFFFFF; border-radius: 18px 4px 18px 18px; padding: 14px 18px; font-family: var(--font-sans); font-size: 13.5px; line-height: 1.6; max-width: 85%;">
+                            {msg["content"]}
+                        </div>
+                        <div style="width: 32px; height: 32px; border-radius: 50%; background: #CBD5E1; flex-shrink: 0; margin-top: 2px;"></div>
+                    </div>
+                    """
+            chat_html += '</div>'
+            render_html(chat_html)
+
+            # Chat Input
+            user_input = st.chat_input("Type your thoughts...", key="home_chat_input")
+            if user_input:
+                st.session_state.chat_messages.append({"role": "user", "content": user_input})
+                response = get_mock_chat_response(user_input)
+                st.session_state.chat_messages.append({"role": "ai", "content": response})
+                st.rerun()
+
+        with c_deck:
+            render_html("""
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div style="font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text-tertiary);">
+                    CONTEXTUAL DECK
+                </div>
+                <div style="font-family: var(--font-sans); font-size: 12px; font-weight: 600; color: var(--accent-blue); cursor: pointer;">
+                    Edit
+                </div>
+            </div>
+            """)
+
+            # Interactive Deck Action Pills (Mockup 3)
+            if st.button("● Deep Work Timer  ·  45:00", key="deck_timer_45", use_container_width=True):
+                start_timer_session("deep_45", "45m Deep Work", 2700, auto_start=True)
+
+            if st.button("● 15-min Walk  ·  15:00", key="deck_timer_15", use_container_width=True):
+                start_timer_session("walk", "15-min Walk", 900, auto_start=True)
+
+            if st.button("● 2-min Breathing  ·  02:00", key="deck_timer_2", use_container_width=True):
+                start_timer_session("breathe", "2-min Breathing", 120, auto_start=True)
+
+
+def render_chat_section(minimal=False):
+    """Legacy helper for embedded chat."""
+    render_unified_harmony_card()
 
 
 def render_action_plan():
-    """Render the contextual action plan panel."""
+    """Render the contextual action plan panel with timer dispatches."""
     actions = [
         {"icon": "🍅", "text": "Focus Block", "meta": "25 minutes", "key": "focus"},
         {"icon": "🧘", "text": "15-Minute Reset", "meta": "Breathing + stretch", "key": "reset"},
@@ -1408,20 +1747,16 @@ def render_action_plan():
         with col:
             if st.button(action_labels[i], key=f"action_{action_keys[i]}", use_container_width=True):
                 st.session_state.selected_action = action_keys[i]
-                st.rerun()
-
-    if st.session_state.selected_action:
-        st.markdown(f"""
-        <div style="background: var(--bg-blue-subtle); border-radius: var(--radius-md); padding: 14px 18px; margin-top: 8px;">
-            <div style="font-family: var(--font-sans); font-size: 13px; color: var(--accent-blue); font-weight: 500;">
-                ✓ Action selected. Your next step is ready when you are.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+                if action_keys[i] == "focus":
+                    start_timer_session("focus_25", "25m Focus Block", 1500)
+                elif action_keys[i] == "reset":
+                    start_timer_session("walk", "15-min Walk", 900)
+                else:
+                    st.rerun()
 
 
 def render_reset_card():
-    """Render the de-escalation reset card."""
+    """Render the de-escalation reset card with direct timer routing."""
     st.markdown("""
     <div class="reset-card">
         <div style="font-family: var(--font-serif); font-size: 18px; color: var(--text-primary); margin-bottom: 6px;">
@@ -1435,25 +1770,190 @@ def render_reset_card():
 
     reset_cols = st.columns(2)
     resets = [
-        ("🚶 15-min Walk", "walk"),
-        ("🫁 2-min Breathing", "breathe"),
-        ("📵 10-min Screen Break", "screen"),
-        ("😴 Strategic Nap", "nap"),
+        ("🚶 15-min Walk", "walk", "15-min Walk", 900),
+        ("🫁 2-min Breathing", "breathe", "2-min Breathing", 120),
+        ("📵 10-min Screen Break", "screen", "10-min Screen Break", 600),
+        ("😴 Strategic Nap", "nap", "Strategic Nap", 1200),
     ]
-    for i, (label, key) in enumerate(resets):
+    for i, (label, key, title, duration) in enumerate(resets):
         with reset_cols[i % 2]:
             if st.button(label, key=f"reset_{key}", use_container_width=True):
-                st.session_state.selected_reset = key
-                st.rerun()
+                start_timer_session(key, title, duration, auto_start=True)
 
-    if st.session_state.selected_reset:
-        st.markdown("""
-        <div style="background: var(--bg-blue-subtle); border-radius: var(--radius-md); padding: 14px 18px; margin-top: 8px; text-align: center;">
-            <div style="font-family: var(--font-sans); font-size: 13px; color: var(--accent-blue); font-weight: 500;">
-                ✓ Reset selected. Your next step is ready when you are.
+
+# ============================================================
+# PAGE: DEDICATED TIMER & COUNTDOWN ENGINE
+# ============================================================
+
+@st.fragment(run_every=1 if st.session_state.get("timer_running", False) else None)
+def render_timer_engine():
+    """Scoped auto-refreshing timer countdown engine."""
+    now = time.time()
+
+    # Wall-clock delta calculation
+    if st.session_state.get("timer_running", False):
+        end_time = st.session_state.get("timer_end_time", now)
+        remaining = max(0, int(round(end_time - now)))
+        st.session_state.timer_remaining = remaining
+        if remaining == 0:
+            st.session_state.timer_running = False
+            st.session_state.timer_completed = True
+            st.rerun()
+    else:
+        remaining = st.session_state.get("timer_remaining", 900)
+
+    total = max(1, st.session_state.get("timer_total", 900))
+    time_str = format_timer_display(remaining)
+    progress_frac = compute_timer_progress(total, remaining)
+
+    # SVG Circular Progress Ring
+    radius = 110
+    circumference = 2 * 3.14159265 * radius
+    dashoffset = circumference * (1.0 - progress_frac)
+    is_completed = st.session_state.get("timer_completed", False)
+    is_running = st.session_state.get("timer_running", False)
+    stroke_color = "#4AA564" if is_completed else "#4A7FB5"
+    status_text = "Completed" if is_completed else ("Running" if is_running else "Paused")
+
+    render_html(f"""
+    <div class="harbor-card" style="text-align: center; padding: 36px 24px; max-width: 600px; margin: 0 auto;">
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="position: relative; width: 260px; height: 260px; display: flex; align-items: center; justify-content: center;">
+                <svg width="260" height="260" viewBox="0 0 260 260" style="transform: rotate(-90deg);">
+                    <circle cx="130" cy="130" r="{radius}" fill="none" stroke="var(--bg-blue-subtle)" stroke-width="12" />
+                    <circle cx="130" cy="130" r="{radius}" fill="none" stroke="{stroke_color}" stroke-width="12"
+                            stroke-dasharray="{circumference}" stroke-dashoffset="{dashoffset}"
+                            stroke-linecap="round" style="transition: stroke-dashoffset 0.6s ease;" />
+                </svg>
+                <div style="position: absolute; text-align: center;">
+                    <div style="font-family: var(--font-sans); font-size: 48px; font-weight: 700; color: var(--text-primary); letter-spacing: -1px;">
+                        {time_str}
+                    </div>
+                    <div style="font-family: var(--font-sans); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: {'#4AA564' if is_completed else 'var(--text-tertiary)'}; margin-top: 4px;">
+                        {status_text}
+                    </div>
+                </div>
             </div>
         </div>
+    </div>
+    """)
+
+    if is_completed:
+        render_html("""
+        <div style="background: #EBF6F0; border: 1px solid #C3E6CB; border-radius: var(--radius-md); padding: 16px 20px; text-align: center; max-width: 600px; margin: 12px auto;">
+            <div style="font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: #2E7D32;">
+                🎉 Session Completed! Great job taking care of your rhythm today.
+            </div>
+        </div>
+        """)
+
+    # Control Action Buttons
+    ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1, 1, 1])
+
+    with ctrl_col1:
+        if is_running:
+            if st.button("⏸ Pause", key="timer_pause", use_container_width=True):
+                st.session_state.timer_running = False
+                st.session_state.timer_end_time = None
+                st.rerun()
+        else:
+            btn_label = "▶ Start" if remaining == total else "▶ Resume"
+            if st.button(btn_label, key="timer_start", use_container_width=True):
+                st.session_state.timer_running = True
+                st.session_state.timer_completed = False
+                st.session_state.timer_end_time = time.time() + st.session_state.timer_remaining
+                st.rerun()
+
+    with ctrl_col2:
+        if st.button("⏹ Stop", key="timer_stop", use_container_width=True):
+            st.session_state.timer_running = False
+            st.session_state.timer_end_time = None
+            st.session_state.timer_remaining = st.session_state.timer_total
+            st.session_state.timer_completed = False
+            st.rerun()
+
+    with ctrl_col3:
+        if st.button("🔄 Reset", key="timer_reset", use_container_width=True):
+            st.session_state.timer_running = False
+            st.session_state.timer_end_time = None
+            st.session_state.timer_remaining = st.session_state.timer_total
+            st.session_state.timer_completed = False
+            st.rerun()
+
+    # Time Adjustment Buttons
+    adj_col1, adj_col2, adj_col3 = st.columns(3)
+    with adj_col1:
+        if st.button("+1 Min", key="timer_plus_1m", use_container_width=True):
+            st.session_state.timer_total += 60
+            st.session_state.timer_remaining += 60
+            if st.session_state.timer_running:
+                st.session_state.timer_end_time = time.time() + st.session_state.timer_remaining
+            st.rerun()
+    with adj_col2:
+        if st.button("+5 Min", key="timer_plus_5m", use_container_width=True):
+            st.session_state.timer_total += 300
+            st.session_state.timer_remaining += 300
+            if st.session_state.timer_running:
+                st.session_state.timer_end_time = time.time() + st.session_state.timer_remaining
+            st.rerun()
+    with adj_col3:
+        if st.button("-1 Min", key="timer_minus_1m", use_container_width=True):
+            new_rem = max(0, st.session_state.timer_remaining - 60)
+            st.session_state.timer_remaining = new_rem
+            if st.session_state.timer_running:
+                st.session_state.timer_end_time = time.time() + new_rem
+            st.rerun()
+
+
+def render_timer():
+    """Render the dedicated timer page."""
+    inject_mouse_bubble()
+
+    col_back, col_badge = st.columns([2, 1])
+    with col_back:
+        if st.button("← Return to Pulse (Home)", key="timer_return_home"):
+            st.session_state.current_page = "home"
+            st.rerun()
+
+    with col_badge:
+        title = st.session_state.get("timer_title", "Reset Session")
+        st.markdown(f"""
+        <div style="text-align: right; padding-top: 6px;">
+            <span style="display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: var(--accent-blue); background: var(--bg-blue-subtle); padding: 4px 12px; border-radius: 16px;">
+                <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--accent-blue);"></span>
+                {title}
+            </span>
+        </div>
         """, unsafe_allow_html=True)
+
+    st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
+
+    # Scoped timer engine
+    render_timer_engine()
+
+    st.markdown('<div style="height: 16px;"></div>', unsafe_allow_html=True)
+
+    # Preset switcher bar
+    st.markdown("""
+    <div style="font-family: var(--font-sans); font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 12px; text-align: center;">
+        QUICK PRESETS
+    </div>
+    """, unsafe_allow_html=True)
+
+    preset_cols = st.columns(6)
+    presets = [
+        ("🚶 15m Walk", "walk", "15-min Walk", 900),
+        ("🫁 2m Breathe", "breathe", "2-min Breathing", 120),
+        ("📵 10m Screen", "screen", "10-min Screen Break", 600),
+        ("😴 20m Nap", "nap", "Strategic Nap", 1200),
+        ("🍅 25m Focus", "focus_25", "25m Focus Block", 1500),
+        ("🎯 45m Deep", "deep_45", "45m Deep Work", 2700),
+    ]
+    for i, (label, key, p_title, duration) in enumerate(presets):
+        with preset_cols[i]:
+            if st.button(label, key=f"quick_preset_{key}", use_container_width=True):
+                start_timer_session(key, p_title, duration, auto_start=True)
+
 
 
 # ============================================================
@@ -1918,8 +2418,9 @@ def render_insights():
             line=dict(color="#8B6DB0", width=2.5, shape="spline"),
             marker=dict(size=7, color="#8B6DB0"),
         ))
+        chart_layout_mood = {k: v for k, v in chart_layout.items() if k != "yaxis"}
         fig_mood.update_layout(
-            **chart_layout,
+            **chart_layout_mood,
             yaxis=dict(
                 showgrid=True,
                 gridcolor="#E8EFF6",
@@ -2125,18 +2626,22 @@ def route_page():
 
     if page == "home":
         render_home()
-    elif page == "checkin":
-        render_checkin()
-    elif page == "chatbot":
-        render_chatbot()
-    elif page == "insights":
-        render_insights()
-    elif page == "logbook":
-        render_logbook()
-    elif page == "resources":
-        render_resources()
     else:
-        render_home()
+        hide_mouse_bubble()
+        if page == "checkin":
+            render_checkin()
+        elif page == "chatbot":
+            render_chatbot()
+        elif page == "insights":
+            render_insights()
+        elif page == "logbook":
+            render_logbook()
+        elif page == "resources":
+            render_resources()
+        elif page == "timer":
+            render_timer()
+        else:
+            render_home()
 
 
 # ============================================================
