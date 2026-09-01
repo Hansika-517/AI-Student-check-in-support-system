@@ -701,9 +701,19 @@ def inject_global_css():
         gap: 12px !important;
         flex-wrap: wrap;
     }
+    .stRadio > div > label,
+    .stRadio label,
+    .stRadio label p,
+    .stRadio label span,
+    div[data-testid="stRadio"] label p,
+    div[data-testid="stRadio"] label span,
+    div[data-testid="stRadio"] label div {
+        color: #1A2332 !important;
+        font-weight: 600 !important;
+    }
     .stRadio > div > label {
-        background: var(--bg-card) !important;
-        border: 1px solid var(--border-light) !important;
+        background: #FFFFFF !important;
+        border: 1px solid #DDE5EE !important;
         border-radius: var(--radius-sm) !important;
         padding: 10px 20px !important;
         font-family: var(--font-sans) !important;
@@ -714,11 +724,14 @@ def inject_global_css():
     .stRadio > div > label:hover {
         border-color: var(--accent-blue) !important;
         background: var(--bg-blue-subtle) !important;
+        color: #1A2332 !important;
     }
     .stRadio > div > label[data-checked="true"],
-    .stRadio > div [data-checked="true"] {
+    .stRadio > div [data-checked="true"],
+    div[data-testid="stRadio"] label[aria-checked="true"] {
         border-color: var(--accent-blue) !important;
         background: var(--bg-blue-subtle) !important;
+        color: #1A2332 !important;
     }
 
     /* Slider overrides */
@@ -1040,15 +1053,22 @@ def start_timer_session(preset_key: str, title: str, duration_seconds: int, auto
 
 def init_session_state():
     """Initialize all session state variables and sync page query params."""
-    # Read and sync routing from query params
-    try:
-        page_param = st.query_params.get("page")
-        if page_param:
-            p = page_param[0] if isinstance(page_param, list) else page_param
-            if p in ["home", "insights", "logbook", "resources", "chatbot", "checkin", "timer"]:
-                st.session_state.current_page = p
-    except Exception:
-        pass
+    if "current_page" not in st.session_state:
+        page = "home"
+        try:
+            page_param = st.query_params.get("page")
+            if page_param:
+                p = page_param[0] if isinstance(page_param, list) else page_param
+                if p in ["home", "insights", "logbook", "resources", "chatbot", "checkin", "timer"]:
+                    page = p
+        except Exception:
+            pass
+        st.session_state.current_page = page
+    else:
+        try:
+            st.query_params["page"] = st.session_state.current_page
+        except Exception:
+            pass
 
     defaults = {
         "current_page": "home",
@@ -1376,7 +1396,10 @@ def render_home():
     with hero_col2:
         render_html('<div style="height: 42px;"></div>')
         if st.button("Begin Check-in", key="home_begin_checkin", use_container_width=True):
+            st.session_state.checkin_submitted = False
+            st.session_state.show_triage = False
             st.session_state.current_page = "checkin"
+            st.query_params["page"] = "checkin"
             st.rerun()
 
     # --- Tier 1 Grid: Status & Recovery (Mockup 1) ---
