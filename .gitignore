@@ -1,5 +1,8 @@
 # Environment variables
 .env
+.env*
+*.key
+GROQ_API.key
 
 # Python cache
 __pycache__/

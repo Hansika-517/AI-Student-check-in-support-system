@@ -33,14 +33,19 @@ load_dotenv()
 
 # Get the Groq API key.
 API_KEY = os.getenv("GROQ_API_KEY")
-
+if not API_KEY:
+    for candidate_path in ["GROQ_API.key", "../GROQ_API.key"]:
+        if os.path.exists(candidate_path):
+            with open(candidate_path, "r", encoding="utf-8") as f:
+                API_KEY = f.read().strip()
+                if API_KEY:
+                    break
 
 # Make sure the API key exists.
 if not API_KEY:
-
     raise ValueError(
         "GROQ_API_KEY not found.\n"
-        "Please check your .env file."
+        "Please check your .env or GROQ_API.key file."
     )
 
 
